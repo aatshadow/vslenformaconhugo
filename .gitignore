@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+.env*.local
+.DS_Store
+*.log
+.vercel
+next-env.d.ts
+
+# Large video assets — push to CDN (Bunny.net) instead
+assets/*.mp4
+public/*.mp4
+public/vsl.mp4
+public/postvsl.mp4
+
