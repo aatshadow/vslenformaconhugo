@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
+import { asset } from '@/lib/basePath';
 
 type Case = {
   name: string;
@@ -29,6 +30,8 @@ const beforeAfterCases: Case[] = [
     name: 'María',
     metric: 'Volumen limpio',
     quote: 'Cero ansiedad por la comida. Por fin disfruto el proceso.',
+    before: '/testimonios/maria_antes.jpg',
+    after: '/testimonios/maria_despues.jpg',
   },
 ];
 
@@ -103,7 +106,7 @@ export function Testimonios() {
                       {c.before ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={c.before}
+                          src={asset(c.before)}
                           alt={`${c.name} — antes`}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"
@@ -122,7 +125,7 @@ export function Testimonios() {
                       {c.after ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={c.after}
+                          src={asset(c.after)}
                           alt={`${c.name} — después`}
                           loading="lazy"
                           className="absolute inset-0 w-full h-full object-cover"

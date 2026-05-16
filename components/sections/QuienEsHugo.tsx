@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
+import { asset } from '@/lib/basePath';
 
 const stats = [
   { num: '+200', label: 'Transformaciones reales' },
@@ -27,7 +28,7 @@ export function QuienEsHugo() {
             <div className="relative aspect-[4/5] max-w-md mx-auto lg:mx-0 rounded-2xl overflow-hidden border border-fire/20 bg-gradient-to-br from-slate-900 to-slate-950">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/hugo/hugo.jpg"
+                src={asset('/hugo/hugo.jpg')}
                 alt="Hugo Casal — entrenador En Forma con Hugo"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover"
