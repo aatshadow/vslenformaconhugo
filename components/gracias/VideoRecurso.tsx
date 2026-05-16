@@ -1,21 +1,15 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 
-export function VideoRecurso() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [playing, setPlaying] = useState(false);
+const YT_ID = 'B4eODo3iIt8';
+const YT_THUMB = `https://i.ytimg.com/vi/${YT_ID}/maxresdefault.jpg`;
+const YT_EMBED = `https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
 
-  const handlePlay = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = false;
-    v.controls = true;
-    v.play();
-    setPlaying(true);
-  };
+export function VideoRecurso() {
+  const [playing, setPlaying] = useState(false);
 
   return (
     <section className="relative py-14 md:py-28 px-4 overflow-hidden">
@@ -41,23 +35,31 @@ export function VideoRecurso() {
         >
           <div className="absolute -inset-2 bg-fire-gradient opacity-30 blur-2xl rounded-2xl animate-pulse-fire" />
 
-          <div className="relative rounded-2xl overflow-hidden border border-fire/20 bg-slate-950 shadow-fire-xl">
-            <video
-              ref={videoRef}
-              playsInline
-              preload="metadata"
-              className="w-full aspect-video block bg-black"
-              onClick={!playing ? handlePlay : undefined}
-            >
-              <source src="/postvsl.mp4" type="video/mp4" />
-            </video>
-
-            {!playing && (
+          <div className="relative rounded-2xl overflow-hidden border border-fire/20 bg-slate-950 shadow-fire-xl aspect-video">
+            {playing ? (
+              <iframe
+                src={YT_EMBED}
+                title="Mensaje de Hugo · post-VSL"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+                className="absolute inset-0 w-full h-full"
+              />
+            ) : (
               <button
+                type="button"
                 aria-label="Reproducir vídeo"
-                onClick={handlePlay}
-                className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/60 via-black/20 to-black/40 cursor-pointer group"
+                onClick={() => setPlaying(true)}
+                className="absolute inset-0 flex items-center justify-center cursor-pointer group"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={YT_THUMB}
+                  alt="Mensaje de Hugo — vista previa"
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40" />
+
                 <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }} className="relative">
                   <div className="absolute inset-0 bg-fire/40 blur-2xl rounded-full" />
                   <div className="relative w-20 h-20 md:w-24 md:h-24 rounded-full bg-fire flex items-center justify-center shadow-fire-lg border-2 border-white/90">

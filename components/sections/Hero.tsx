@@ -1,19 +1,17 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { AnimatedText } from '../ui/AnimatedText';
 
+const YT_ID = 'EDvQFeHMF_w';
+const YT_THUMB = `https://i.ytimg.com/vi/${YT_ID}/maxresdefault.jpg`;
+const YT_EMBED = `https://www.youtube.com/embed/${YT_ID}?autoplay=1&rel=0&modestbranding=1&playsinline=1`;
+
 export function Hero() {
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
 
   const handlePlay = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = false;
-    v.controls = true;
-    v.play();
     setPlaying(true);
   };
 
@@ -83,24 +81,31 @@ export function Hero() {
         {/* Glow halo */}
         <div className="absolute -inset-2 bg-fire-gradient opacity-40 blur-2xl rounded-2xl animate-pulse-fire" />
 
-        <div className="relative rounded-2xl overflow-hidden border border-fire/20 bg-slate-950 shadow-fire-xl">
-          <video
-            ref={videoRef}
-            playsInline
-            preload="metadata"
-            poster=""
-            className="w-full aspect-video block bg-black"
-            onClick={!playing ? handlePlay : undefined}
-          >
-            <source src="/vsl.mp4" type="video/mp4" />
-          </video>
-
-          {!playing && (
+        <div className="relative rounded-2xl overflow-hidden border border-fire/20 bg-slate-950 shadow-fire-xl aspect-video">
+          {playing ? (
+            <iframe
+              src={YT_EMBED}
+              title="VSL En Forma con Hugo"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              className="absolute inset-0 w-full h-full"
+            />
+          ) : (
             <button
+              type="button"
               aria-label="Reproducir VSL"
               onClick={handlePlay}
-              className="absolute inset-0 flex items-center justify-center bg-gradient-to-t from-black/60 via-black/20 to-black/40 group cursor-pointer"
+              className="absolute inset-0 flex items-center justify-center group cursor-pointer"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={YT_THUMB}
+                alt="VSL En Forma con Hugo — vista previa"
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/40" />
+
               <motion.div
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}

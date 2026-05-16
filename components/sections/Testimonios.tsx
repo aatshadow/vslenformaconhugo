@@ -3,17 +3,27 @@
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 
-// Placeholder testimonios — Alex completará con sus videos/fotos reales
-const beforeAfterCases = [
+type Case = {
+  name: string;
+  metric: string;
+  quote: string;
+  before?: string;
+  after?: string;
+};
+
+const beforeAfterCases: Case[] = [
   {
     name: 'Marco',
     metric: '-7 kg',
     quote: 'Sin pasar hambre y comiendo lo que me gusta. Brutal.',
+    before: '/testimonios/marco_antes.jpg',
   },
   {
     name: 'Ignacio',
     metric: 'Transformación completa',
     quote: '8 semanas y no me reconozco. Lo más fácil que he hecho.',
+    before: '/testimonios/ignacio_antes.jpg',
+    after: '/testimonios/ignacio_despues.jpg',
   },
   {
     name: 'María',
@@ -85,16 +95,49 @@ export function Testimonios() {
               className="relative p-1 rounded-2xl bg-gradient-to-br from-fire/40 via-fire/10 to-transparent"
             >
               <div className="relative rounded-2xl bg-gradient-to-br from-slate-900 to-ink p-6 h-full overflow-hidden">
-                {/* Image placeholder */}
-                <div className="aspect-square rounded-xl bg-slate-950 border border-white/5 mb-5 flex items-center justify-center overflow-hidden relative">
-                  <div className="absolute inset-0 flex">
-                    <div className="flex-1 flex flex-col items-center justify-center border-r border-fire/10">
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Antes</span>
-                      <div className="w-12 h-12 mt-2 rounded-full bg-slate-800/60" />
+                {/* Before/After */}
+                <div className="aspect-square rounded-xl bg-slate-950 border border-white/5 mb-5 overflow-hidden relative">
+                  <div className="absolute inset-0 grid grid-cols-2">
+                    {/* Antes */}
+                    <div className="relative border-r border-fire/10 overflow-hidden">
+                      {c.before ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.before}
+                          alt={`${c.name} — antes`}
+                          loading="lazy"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <div className="w-12 h-12 rounded-full bg-slate-800/60" />
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-2 py-1.5">
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-white/90">Antes</span>
+                      </div>
                     </div>
-                    <div className="flex-1 flex flex-col items-center justify-center bg-fire/5">
-                      <span className="font-mono text-[10px] uppercase tracking-widest text-fire-light">Después</span>
-                      <div className="w-12 h-12 mt-2 rounded-full bg-fire/30" />
+                    {/* Después */}
+                    <div className="relative bg-fire/5 overflow-hidden">
+                      {c.after ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={c.after}
+                          alt={`${c.name} — después`}
+                          loading="lazy"
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
+                          <div className="w-12 h-12 rounded-full bg-fire/30" />
+                          <span className="font-mono text-[9px] uppercase tracking-widest text-slate-400 mt-2">
+                            Foto<br/>pendiente
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 top-0 bg-gradient-to-b from-black/70 to-transparent px-2 py-1.5 text-right">
+                        <span className="font-mono text-[10px] uppercase tracking-widest text-fire-light">Después</span>
+                      </div>
                     </div>
                   </div>
                 </div>

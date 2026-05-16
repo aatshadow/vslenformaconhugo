@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 
-// Booking host de Hugo en el Dashboard-Ops (slug=enformaconhugo, host=hugo).
+// Booking host de Hugo en Dashboard-Ops (slug=enformaconhugo, host=hugo).
 // 30 min, L-D 11:00→22:00 (Europe/Madrid).
 const AGENDA_URL = 'https://central.blackwolfsec.io/enformaconhugo/agendas/hugo';
 
@@ -17,7 +17,22 @@ const DETALLES = [
   { icon: '🎯', titulo: 'Sin compromiso', sub: 'Si encajamos, hablamos del plan' },
 ];
 
-export function AgendaDirecta() {
+type Props = {
+  /**
+   * `gate` (default, en la VSL): bloquea hasta rellenar el form — el CTA scrollea a `#reservar`.
+   * `unlocked` (en /gracias): el lead ya ha rellenado el form, el CTA abre la agenda real.
+   */
+  mode?: 'gate' | 'unlocked';
+};
+
+export function AgendaDirecta({ mode = 'gate' }: Props) {
+  const unlocked = mode === 'unlocked';
+
+  const scrollToForm = (e: React.MouseEvent) => {
+    e.preventDefault();
+    document.getElementById('reservar')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <section
       id="agenda-directa"
@@ -28,13 +43,20 @@ export function AgendaDirecta() {
 
       <div className="relative max-w-3xl mx-auto">
         <FadeInSection className="text-center mb-10">
-          <span className="section-eyebrow">¿Ya tienes claro tu hueco?</span>
+          <span className="section-eyebrow">
+            {unlocked ? 'Reserva ya tu hueco' : 'Horario de atención'}
+          </span>
           <h2 className="font-display text-[clamp(28px,7vw,52px)] md:text-6xl uppercase mt-5 tracking-[-0.02em] leading-[0.95]">
-            Reserva directamente <br/>
-            <span className="text-fire-gradient">tu llamada con Hugo.</span>
+            {unlocked ? (
+              <>Elige tu hueco <br/><span className="text-fire-gradient">con Hugo.</span></>
+            ) : (
+              <>Estos son los huecos <br/><span className="text-fire-gradient">disponibles con Hugo.</span></>
+            )}
           </h2>
           <p className="font-body text-slate-300 text-base md:text-lg mt-5 max-w-xl mx-auto leading-relaxed">
-            Si prefieres saltarte el formulario y elegir hueco ahora mismo, abre la agenda de Hugo y reserva tu llamada de 30 minutos.
+            {unlocked
+              ? 'Ya tienes el acceso desbloqueado. Abre la agenda y elige el hueco de 30 minutos que mejor te encaje — Hugo lo confirma automáticamente en su Google Calendar.'
+              : 'Para reservar tu llamada de 30 minutos primero tienes que completar el formulario — Hugo lo lee antes de cada llamada y solo así te abrimos el acceso a la agenda.'}
           </p>
         </FadeInSection>
 
@@ -90,16 +112,36 @@ export function AgendaDirecta() {
               ))}
             </div>
 
+            {/* Aviso */}
+            <div className="mb-5 rounded-xl border border-fire/40 bg-fire/10 px-4 py-3 text-center">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-fire-light leading-relaxed">
+                {unlocked
+                  ? '✅ Acceso desbloqueado — formulario completado'
+                  : '⚠ El formulario es obligatorio para acceder a la agenda'}
+              </p>
+            </div>
+
             {/* CTA */}
-            <a
-              href={AGENDA_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="cta-fire w-full !py-5 !text-base flex items-center justify-center gap-2"
-            >
-              <span>Abrir agenda y reservar mi hueco</span>
-              <span aria-hidden="true">→</span>
-            </a>
+            {unlocked ? (
+              <a
+                href={AGENDA_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="cta-fire w-full !py-5 !text-base flex items-center justify-center gap-2"
+              >
+                <span>Abrir agenda y reservar mi hueco</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            ) : (
+              <a
+                href="#reservar"
+                onClick={scrollToForm}
+                className="cta-fire w-full !py-5 !text-base flex items-center justify-center gap-2"
+              >
+                <span>Completar formulario y reservar</span>
+                <span aria-hidden="true">→</span>
+              </a>
+            )}
 
             <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center mt-4">
               🔒 Slots actualizados en vivo · Google Calendar de Hugo

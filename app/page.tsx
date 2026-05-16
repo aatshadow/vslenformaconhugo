@@ -9,7 +9,6 @@ import { Garantia } from '@/components/sections/Garantia';
 import { UrgenciaVerano } from '@/components/sections/UrgenciaVerano';
 import { FAQ } from '@/components/sections/FAQ';
 import { FormularioReserva } from '@/components/sections/FormularioReserva';
-import { AgendaDirecta } from '@/components/sections/AgendaDirecta';
 import { Footer } from '@/components/sections/Footer';
 import { StickyMobileCTA } from '@/components/ui/StickyMobileCTA';
 
@@ -27,7 +26,6 @@ export default function Home() {
       <UrgenciaVerano />
       <FAQ />
       <FormularioReserva />
-      <AgendaDirecta />
       <Footer />
       <StickyMobileCTA />
     </main>

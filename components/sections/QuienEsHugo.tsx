@@ -22,26 +22,19 @@ export function QuienEsHugo() {
         </FadeInSection>
 
         <div className="grid lg:grid-cols-[1fr_1.2fr] gap-10 md:gap-14 items-center">
-          {/* Photo placeholder */}
+          {/* Foto de Hugo */}
           <FadeInSection delay={0.1}>
             <div className="relative aspect-[4/5] max-w-md mx-auto lg:mx-0 rounded-2xl overflow-hidden border border-fire/20 bg-gradient-to-br from-slate-900 to-slate-950">
-              {/* Placeholder for Hugo's photo */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center px-6">
-                  <div className="w-24 h-24 rounded-full bg-fire/10 border border-fire/30 mx-auto flex items-center justify-center mb-4">
-                    <svg viewBox="0 0 24 24" fill="none" className="w-12 h-12 text-fire">
-                      <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.5"/>
-                      <path d="M4 21c0-4 4-6 8-6s8 2 8 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </div>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate-500">
-                    Foto de Hugo<br/>(placeholder)
-                  </p>
-                </div>
-              </div>
-              {/* Gradient overlays */}
-              <div className="absolute inset-0 bg-gradient-to-t from-ink via-transparent to-transparent" />
-              <div className="absolute inset-0 bg-gradient-to-r from-ink/40 via-transparent to-ink/40" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/hugo/hugo.jpg"
+                alt="Hugo Casal — entrenador En Forma con Hugo"
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              {/* Gradient overlays para legibilidad de los textos overlayed */}
+              <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/10 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-r from-ink/30 via-transparent to-ink/30" />
 
               {/* Verified badge */}
               <div className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-ink/80 backdrop-blur border border-fire/30">
