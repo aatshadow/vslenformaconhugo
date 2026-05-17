@@ -163,20 +163,20 @@ const carouselB: CarouselItem[] = [
 ];
 
 const CARD_BASE =
-  'flex-shrink-0 w-[220px] md:w-[300px] aspect-[3/4] rounded-2xl overflow-hidden border border-white/5 relative';
+  'flex-shrink-0 h-[300px] md:h-[420px] rounded-2xl overflow-hidden border border-white/5 relative';
 
 function CarouselCard({ item }: { item: CarouselItem }) {
   if (item.kind === 'image') {
     return (
-      <div className={`${CARD_BASE} bg-black`}>
+      <div className={`${CARD_BASE} aspect-[16/11] bg-slate-900`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={asset(item.src)}
           alt={item.headline}
           loading="lazy"
-          className="absolute inset-0 w-full h-full object-cover object-top"
+          className="absolute inset-0 w-full h-full object-contain bg-slate-900"
         />
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/80 to-transparent p-4 pt-10">
+        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/85 to-transparent p-4 pt-10">
           <div className="font-display text-base md:text-lg uppercase text-white leading-tight">
             {item.headline}
           </div>
@@ -189,7 +189,7 @@ function CarouselCard({ item }: { item: CarouselItem }) {
   }
 
   return (
-    <div className={`${CARD_BASE} bg-black group`}>
+    <div className={`${CARD_BASE} aspect-[9/16] bg-black group`}>
       <video
         src={asset(item.src)}
         controls
