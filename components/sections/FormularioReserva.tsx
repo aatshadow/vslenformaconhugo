@@ -3,7 +3,14 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
-import { supabase, type LeadPayload } from '@/lib/supabase';
+import type { LeadPayload } from '@/lib/supabase';
+
+// Endpoint central de Dashboard-Ops que upserta en crm_contacts del tenant
+// `enformaconhugo` con pipeline "VSL En Forma con Hugo" + stage `lead`.
+// Override-able via NEXT_PUBLIC_LEAD_ENDPOINT para preview/staging.
+const LEAD_ENDPOINT =
+  process.env.NEXT_PUBLIC_LEAD_ENDPOINT ||
+  'https://central.blackwolfsec.io/api/forms/enformaconhugo-submit';
 
 const PHONE_PREFIXES = [
   { code: '+34', country: 'España' },
@@ -84,12 +91,14 @@ export function FormularioReserva() {
     };
 
     try {
-      if (supabase) {
-        const { error } = await supabase.from('leads').insert([payload]);
-        if (error) throw error;
-      } else {
-        console.log('Lead capturado (Supabase no configurado):', payload);
-        await new Promise(r => setTimeout(r, 800));
+      const res = await fetch(LEAD_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || `HTTP ${res.status}`);
       }
       // Persist name for thank-you page
       try {
