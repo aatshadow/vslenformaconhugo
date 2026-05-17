@@ -18,6 +18,7 @@ const beforeAfterCases: Case[] = [
     metric: '-7 kg',
     quote: 'Sin pasar hambre y comiendo lo que me gusta. Brutal.',
     before: '/testimonios/marco_antes.jpg',
+    after: '/testimonios/marco_despues.jpg',
   },
   {
     name: 'Ignacio',
@@ -37,6 +38,30 @@ const beforeAfterCases: Case[] = [
 
 const carouselA = Array.from({ length: 10 }, (_, i) => i + 1);
 const carouselB = Array.from({ length: 10 }, (_, i) => i + 11);
+
+type ChatTestimonial = {
+  src: string;
+  headline: string;
+  caption: string;
+};
+
+const chatTestimonials: ChatTestimonial[] = [
+  {
+    src: '/testimonios/texto/talla46_a_40.jpg',
+    headline: 'De la 46 a la 40',
+    caption: '«Quien coño lo diría en 2 meses. Wow.»',
+  },
+  {
+    src: '/testimonios/texto/10kg_2meses.jpg',
+    headline: '-10 kg en 2 meses',
+    caption: '«A nada de bajar de los 80. Gracias a ti.»',
+  },
+];
+
+const audioTestimonials = [
+  { src: '/testimonios/audios/audio_1.mp4', label: 'Audio · Cliente real' },
+  { src: '/testimonios/audios/audio_2.mp4', label: 'Audio · Cliente real' },
+];
 
 function TestimonioPlaceholder({ idx }: { idx: number }) {
   return (
@@ -154,6 +179,69 @@ export function Testimonios() {
                   &ldquo;{c.quote}&rdquo;
                 </p>
               </div>
+            </motion.div>
+          ))}
+        </div>
+      </div>
+
+      {/* Voces reales — chats + audios */}
+      <div className="max-w-6xl mx-auto px-4 mb-20">
+        <FadeInSection className="text-center mb-10">
+          <span className="section-eyebrow">Voces reales</span>
+          <h3 className="font-display text-3xl md:text-5xl uppercase mt-5 tracking-[-0.02em] leading-[0.95]">
+            Lo que escriben <span className="text-fire-gradient">cuando avanzan.</span>
+          </h3>
+        </FadeInSection>
+
+        <div className="grid md:grid-cols-2 gap-5">
+          {chatTestimonials.map((t, i) => (
+            <motion.div
+              key={t.src}
+              initial={{ opacity: 0, y: 25 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.6, delay: i * 0.1 }}
+              className="relative p-1 rounded-2xl bg-gradient-to-br from-fire/40 via-fire/10 to-transparent"
+            >
+              <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-ink p-5 h-full">
+                <div className="rounded-xl overflow-hidden border border-white/5 bg-black mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={asset(t.src)}
+                    alt={t.headline}
+                    loading="lazy"
+                    className="w-full h-auto block"
+                  />
+                </div>
+                <div className="font-display text-xl uppercase text-white mb-1.5">{t.headline}</div>
+                <p className="font-body text-slate-300 text-sm italic">{t.caption}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-5 mt-5">
+          {audioTestimonials.map((a, i) => (
+            <motion.div
+              key={a.src}
+              initial={{ opacity: 0, y: 25 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.6, delay: i * 0.1 }}
+              className="rounded-2xl bg-gradient-to-br from-slate-900 to-ink border border-fire/20 p-5"
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-fire-light">
+                  {a.label}
+                </span>
+              </div>
+              <video
+                src={asset(a.src)}
+                controls
+                preload="metadata"
+                playsInline
+                className="w-full rounded-xl bg-black"
+              />
             </motion.div>
           ))}
         </div>
