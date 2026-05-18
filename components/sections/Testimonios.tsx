@@ -15,7 +15,7 @@ type Case = {
 const beforeAfterCases: Case[] = [
   {
     name: 'Marco',
-    metric: '-7 kg',
+    metric: '-15 kg',
     quote: 'Sin pasar hambre y comiendo lo que me gusta. Brutal.',
     before: '/testimonios/marco_antes.jpg',
     after: '/testimonios/marco_despues.jpg',
