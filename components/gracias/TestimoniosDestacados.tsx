@@ -2,29 +2,19 @@
 
 import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
+import { asset } from '@/lib/basePath';
 
-const cases = [
-  {
-    name: 'Laura',
-    metric: '-9 kg en 10 sem',
-    quote:
-      'Llevaba 4 años yendo al gym sin resultados visibles. En 10 semanas con Hugo he conseguido lo que no había logrado en años. Pero lo mejor no es el peso — es lo bien que me siento.',
-    role: 'Madre · 38 años',
-  },
-  {
-    name: 'David',
-    metric: '+6 kg músculo',
-    quote:
-      'Vine a perder grasa y me quedé porque entendí cómo funciona mi cuerpo. Hugo no es un entrenador más, es alguien que te enseña a pensar tu nutrición y entreno.',
-    role: 'Empresario · 31 años',
-  },
-  {
-    name: 'Carolina',
-    metric: 'Recomposición total',
-    quote:
-      'Lo que me cambió la vida no fue el plan en sí, fue saber que cada 15 días tenía a alguien revisando lo que hacía. Por fin alguien que no me dejaba abandonar.',
-    role: 'Enfermera · 42 años',
-  },
+const videoSrcs = [
+  '/testimonios/videos/video_01.mp4',
+  '/testimonios/videos/video_02.mp4',
+  '/testimonios/videos/video_03.mp4',
+  '/testimonios/videos/video_04.mp4',
+  '/testimonios/videos/video_05.mp4',
+  '/testimonios/videos/video_06.mp4',
+  '/testimonios/videos/video_07.mp4',
+  '/testimonios/videos/video_08.mp4',
+  '/testimonios/videos/video_09.mp4',
+  '/testimonios/videos/video_10.mp4',
 ];
 
 export function TestimoniosDestacados() {
@@ -43,43 +33,28 @@ export function TestimoniosDestacados() {
           </h2>
         </FadeInSection>
 
-        <div className="grid md:grid-cols-3 gap-5">
-          {cases.map((c, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+          {videoSrcs.map((src, i) => (
             <motion.div
-              key={c.name}
-              initial={{ opacity: 0, y: 40 }}
+              key={src}
+              initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.6, delay: i * 0.12 }}
-              className="relative p-6 md:p-7 rounded-2xl bg-gradient-to-br from-slate-900 to-ink border border-fire/20 overflow-hidden"
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.5, delay: (i % 4) * 0.08 }}
+              className="relative rounded-2xl border border-fire/20 bg-black overflow-hidden aspect-[9/16]"
             >
-              {/* Image placeholder */}
-              <div className="aspect-[4/3] rounded-xl bg-slate-950 border border-white/5 mb-5 flex items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 flex">
-                  <div className="flex-1 flex flex-col items-center justify-center border-r border-fire/10">
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Antes</span>
-                    <div className="w-10 h-10 mt-2 rounded-full bg-slate-800/60" />
-                  </div>
-                  <div className="flex-1 flex flex-col items-center justify-center bg-fire/5">
-                    <span className="font-mono text-[10px] uppercase tracking-widest text-fire-light">Después</span>
-                    <div className="w-10 h-10 mt-2 rounded-full bg-fire/30" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="font-display text-xl uppercase text-white">{c.name}</div>
-                  <div className="font-mono text-[10px] uppercase tracking-widest text-slate-500 mt-0.5">{c.role}</div>
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-fire text-white font-mono text-[10px] font-bold uppercase tracking-wider">
-                  {c.metric}
+              <video
+                src={asset(src)}
+                controls
+                preload="metadata"
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover bg-black"
+              />
+              <div className="absolute top-2 left-2 pointer-events-none">
+                <span className="px-2 py-0.5 rounded bg-fire/90 text-white font-mono text-[10px] font-bold uppercase tracking-widest">
+                  ▶ Caso #{(i + 1).toString().padStart(2, '0')}
                 </span>
               </div>
-
-              <p className="font-body text-slate-300 text-sm italic leading-relaxed">
-                &ldquo;{c.quote}&rdquo;
-              </p>
             </motion.div>
           ))}
         </div>
