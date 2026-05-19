@@ -1,9 +1,51 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, useMemo, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 import type { LeadPayload } from '@/lib/supabase';
+
+// ─── Calendar utilities ─────────────────────────────────────────────────
+// Construye los próximos N días laborales (lun-vie) saltando hoy si ya
+// pasó la última franja. Hugo trabaja desde España (Europe/Madrid). Slots
+// fijos por día — algunos se marcan "ocupado" deterministicamente con un
+// hash del slot+día para que parezca realista sin tocar calendar real.
+const TIME_SLOTS = ['10:00', '11:00', '12:00', '13:00', '16:00', '17:00', '18:00', '19:00'];
+const DAYS_OFFERED = 12; // ~2 semanas hábiles
+
+function nextAvailableDays(count: number): Date[] {
+  const out: Date[] = [];
+  const cur = new Date();
+  cur.setHours(0, 0, 0, 0);
+  let i = 0;
+  while (out.length < count && i < 30) {
+    const d = new Date(cur.getTime() + i * 86400000);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) out.push(d); // skip weekends
+    i++;
+  }
+  return out;
+}
+
+function isSlotTaken(date: Date, slot: string): boolean {
+  // Hash determinista: 25% de slots aparecen "ocupados". Misma fecha+slot
+  // siempre devuelve el mismo resultado (no flickea entre renders).
+  const key = `${date.toISOString().slice(0, 10)}-${slot}`;
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = ((h << 5) - h) + key.charCodeAt(i) | 0;
+  return Math.abs(h) % 4 === 0;
+}
+
+function fmtDayShort(d: Date): { weekday: string; day: string; month: string } {
+  const weekday = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
+  const day = String(d.getDate());
+  const month = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
+  return { weekday, day, month };
+}
+
+function fmtFullDate(d: Date): string {
+  return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+}
 
 // Endpoint central de Dashboard-Ops que upserta en crm_contacts del tenant
 // `enformaconhugo` con pipeline "VSL En Forma con Hugo" + stage `lead`.
@@ -71,6 +113,19 @@ export function FormularioReserva() {
     motivacion: '',
   });
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  // Calendar state. El usuario elige un día + slot horario antes de
+  // enviar. Sin selección, el botón submit queda bloqueado.
+  const days = useMemo(() => nextAvailableDays(DAYS_OFFERED), []);
+  const [selectedDateIdx, setSelectedDateIdx] = useState<number>(0);
+  const [selectedSlot, setSelectedSlot] = useState<string>('');
+  const selectedDate = days[selectedDateIdx] || null;
+  const scheduledAtISO = useMemo(() => {
+    if (!selectedDate || !selectedSlot) return '';
+    const [h, m] = selectedSlot.split(':').map(Number);
+    const d = new Date(selectedDate);
+    d.setHours(h, m, 0, 0);
+    return d.toISOString();
+  }, [selectedDate, selectedSlot]);
 
   const handleChange = (field: keyof FormState) => (e: any) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -78,9 +133,10 @@ export function FormularioReserva() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!scheduledAtISO) return; // gate: hay que elegir fecha+hora
     setStatus('loading');
 
-    const payload: LeadPayload = {
+    const payload: LeadPayload & { scheduled_at?: string; scheduled_display?: string } = {
       name: form.name.trim(),
       whatsapp: `${form.prefix} ${form.whatsapp.trim()}`,
       email: form.email.trim().toLowerCase(),
@@ -88,6 +144,10 @@ export function FormularioReserva() {
       momento_actual: form.momento,
       motivacion: form.motivacion.trim(),
       source: 'landing-vsl-enformaconhugo',
+      scheduled_at: scheduledAtISO,
+      scheduled_display: selectedDate
+        ? `${fmtFullDate(selectedDate)} · ${selectedSlot}h`
+        : '',
     };
 
     try {
@@ -100,10 +160,16 @@ export function FormularioReserva() {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || `HTTP ${res.status}`);
       }
-      // Persist name for thank-you page
+      // Persist name + fecha agendada para thank-you page
       try {
         sessionStorage.setItem('hugo_lead_name', form.name.trim());
         sessionStorage.setItem('hugo_lead_email', form.email.trim());
+        if (selectedDate && selectedSlot) {
+          sessionStorage.setItem(
+            'hugo_lead_scheduled',
+            `${fmtFullDate(selectedDate)} · ${selectedSlot}h`,
+          );
+        }
       } catch {}
       setStatus('success');
       setTimeout(() => {
@@ -259,12 +325,82 @@ export function FormularioReserva() {
                 />
               </div>
 
+              {/* Calendar widget — fecha + slot horario. Sin selección
+                  el submit queda gated. Funciona "tipo Calendly" pero
+                  los slots no se reservan en agenda real de Hugo: la
+                  app simula disponibilidad determinista (~25% slots
+                  ocupados) y al enviar guarda scheduled_at en payload
+                  para que el CRM lo registre. */}
+              <div className="pt-2">
+                <label className="block font-mono text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-3">
+                  Elige día y hora para la llamada
+                </label>
+                {/* Day picker — horizontal scroll */}
+                <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-fire/30 [&::-webkit-scrollbar-thumb]:rounded-full">
+                  {days.map((d, i) => {
+                    const { weekday, day, month } = fmtDayShort(d);
+                    const active = i === selectedDateIdx;
+                    return (
+                      <button
+                        key={d.toISOString()}
+                        type="button"
+                        onClick={() => { setSelectedDateIdx(i); setSelectedSlot(''); }}
+                        className={`flex-shrink-0 min-w-[64px] px-3 py-2 rounded-xl border transition-all flex flex-col items-center ${
+                          active
+                            ? 'border-fire bg-fire/10 text-white shadow-fire'
+                            : 'border-white/10 bg-slate-950/60 text-slate-300 hover:border-fire/40 hover:bg-fire/5'
+                        }`}
+                      >
+                        <span className="font-mono text-[9px] uppercase tracking-widest opacity-70">{weekday}</span>
+                        <span className={`font-display text-xl leading-none mt-1 ${active ? 'text-fire-gradient' : ''}`}>{day}</span>
+                        <span className="font-mono text-[9px] uppercase tracking-widest opacity-50 mt-1">{month}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* Slot picker — grid */}
+                <div className="grid grid-cols-4 gap-2 mt-3">
+                  {TIME_SLOTS.map(slot => {
+                    const taken = selectedDate ? isSlotTaken(selectedDate, slot) : false;
+                    const active = selectedSlot === slot;
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        disabled={taken}
+                        onClick={() => setSelectedSlot(slot)}
+                        className={`py-2.5 rounded-xl border font-mono text-sm transition-all ${
+                          taken
+                            ? 'border-white/5 bg-slate-950/40 text-slate-600 line-through cursor-not-allowed'
+                            : active
+                              ? 'border-fire bg-fire text-white shadow-fire'
+                              : 'border-white/10 bg-slate-950/60 text-slate-300 hover:border-fire/50 hover:bg-fire/5'
+                        }`}
+                        title={taken ? 'Slot ocupado' : 'Disponible'}
+                      >
+                        {slot}
+                      </button>
+                    );
+                  })}
+                </div>
+                {scheduledAtISO && (
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-fire-light mt-3 text-center">
+                    Llamada {selectedDate && fmtFullDate(selectedDate)} · {selectedSlot}h
+                  </p>
+                )}
+                {!scheduledAtISO && (
+                  <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 mt-3 text-center">
+                    Selecciona una hora para continuar
+                  </p>
+                )}
+              </div>
+
               <button
                 type="submit"
-                disabled={status === 'loading'}
-                className="cta-fire w-full !py-5 !text-base mt-4 disabled:opacity-60 disabled:cursor-wait"
+                disabled={status === 'loading' || !scheduledAtISO}
+                className="cta-fire w-full !py-5 !text-base mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {status === 'loading' ? 'Enviando…' : status === 'error' ? 'Error — reintenta' : 'Reservar mi llamada gratis →'}
+                {status === 'loading' ? 'Confirmando…' : status === 'error' ? 'Error — reintenta' : !scheduledAtISO ? 'Elige día y hora arriba' : 'Confirmar mi llamada gratis →'}
               </button>
 
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-3 text-center">
@@ -283,14 +419,17 @@ export function FormularioReserva() {
         )}
 
         {status === 'success' && (
-          <PostSubmitCountdown firstName={form.name.split(' ')[0]} />
+          <PostSubmitCountdown
+            firstName={form.name.split(' ')[0]}
+            scheduledLabel={selectedDate && selectedSlot ? `${fmtFullDate(selectedDate)} · ${selectedSlot}h` : ''}
+          />
         )}
       </div>
     </section>
   );
 }
 
-function PostSubmitCountdown({ firstName }: { firstName: string }) {
+function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string; scheduledLabel: string }) {
   const [count, setCount] = useState(5);
 
   useEffect(() => {
@@ -333,6 +472,11 @@ function PostSubmitCountdown({ firstName }: { firstName: string }) {
           <span className="text-fire-gradient">¡Estás dentro!</span>
         </p>
 
+        {scheduledLabel && (
+          <p className="font-mono text-xs md:text-sm uppercase tracking-[0.18em] text-fire-light mt-5">
+            ★ Llamada confirmada · {scheduledLabel}
+          </p>
+        )}
         <p className="font-body text-slate-300 text-base md:text-lg mt-6 max-w-md mx-auto leading-relaxed">
           Te estamos llevando al siguiente paso. <span className="text-fire-light font-semibold">No cierres esta ventana.</span>
         </p>

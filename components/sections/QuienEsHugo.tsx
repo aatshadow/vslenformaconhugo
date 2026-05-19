@@ -94,7 +94,7 @@ export function QuienEsHugo() {
             </div>
 
             <FadeInSection delay={0.4} className="mt-8 flex flex-col items-center lg:items-start gap-3">
-              <a href="#reservar" className="cta-fire">
+              <a href="#reservar" className="cta-fire whitespace-nowrap">
                 Hablar directamente con Hugo →
               </a>
               <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-slate-500">
