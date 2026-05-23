@@ -191,3 +191,44 @@ a, button {
 video::-webkit-media-controls-timeline { display: none !important; }
 video::-webkit-media-controls-current-time-display { display: none !important; }
 video::-webkit-media-controls-time-remaining-display { display: none !important; }
+
+/* Lead magnet form inputs — usados en LeadMagnetForm + CalorieCalculator.
+   Vivían en styled-jsx scoped al primer componente, lo que hacía que al
+   cambiar de paso (form → calculadora) los inputs perdieran el estilo y
+   se renderizaran con el default blanco del browser. */
+.form-input {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  border-radius: 0.75rem;
+  background: rgba(2, 6, 23, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: border-color 0.2s, background 0.2s;
+  color-scheme: dark;
+}
+.form-input::placeholder { color: #475569; }
+.form-input:focus {
+  outline: none;
+  border-color: #FF4500;
+  background: rgba(255, 69, 0, 0.05);
+}
+.form-input option {
+  background: #08090A;
+  color: white;
+}
+/* Autofill (Chrome/Safari) sobreescribe fondo y texto — mantenemos dark. */
+.form-input:-webkit-autofill,
+.form-input:-webkit-autofill:hover,
+.form-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: white;
+  -webkit-box-shadow: 0 0 0 1000px rgba(2, 6, 23, 0.95) inset;
+  caret-color: white;
+}
+/* Quitar spinners feos del type=number */
+.form-input[type="number"]::-webkit-outer-spin-button,
+.form-input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.form-input[type="number"] { -moz-appearance: textfield; }

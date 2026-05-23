@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type Gender = 'male' | 'female';
@@ -274,19 +274,35 @@ function NumField({ label, value, onChange, min, max, unit }: {
   max: number;
   unit: string;
 }) {
+  // Mantenemos un buffer string para que el usuario pueda escribir libremente
+  // (borrar el valor entero, tipear "1" antes de "18", etc.) sin que cada
+  // keystroke se clampee al min. El clamp solo aplica en blur, cuando el
+  // usuario ya terminó de tipear.
+  const [draft, setDraft] = useState<string>(String(value));
+  useEffect(() => { setDraft(String(value)); }, [value]);
+
+  const commit = () => {
+    if (draft === '' || draft === '-') { setDraft(String(value)); return; }
+    const n = Number(draft);
+    if (!Number.isFinite(n)) { setDraft(String(value)); return; }
+    const clamped = Math.max(min, Math.min(max, n));
+    onChange(clamped);
+    setDraft(String(clamped));
+  };
+
   return (
     <div>
       <Label>{label}</Label>
       <div className="relative mt-2">
         <input
           type="number"
+          inputMode="numeric"
           min={min}
           max={max}
-          value={value}
-          onChange={(e) => {
-            const n = Number(e.target.value);
-            if (Number.isFinite(n)) onChange(Math.max(min, Math.min(max, n)));
-          }}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
           className="form-input pr-12 text-center font-mono text-lg"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[10px] uppercase tracking-widest text-slate-500 pointer-events-none">

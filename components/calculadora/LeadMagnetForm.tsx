@@ -196,27 +196,6 @@ export function LeadMagnetForm({ onSubmit }: Props) {
       </div>
 
       <style jsx>{`
-        :global(.form-input) {
-          width: 100%;
-          padding: 0.875rem 1rem;
-          border-radius: 0.75rem;
-          background: rgba(2,6,23,0.8);
-          border: 1px solid rgba(255,255,255,0.1);
-          color: white;
-          font-family: var(--font-body, Inter), sans-serif;
-          transition: border-color 0.2s, background 0.2s;
-        }
-        :global(.form-input::placeholder) { color: #475569; }
-        :global(.form-input:focus) {
-          outline: none;
-          border-color: #FF4500;
-          background: rgba(255,69,0,0.05);
-        }
-        :global(.form-input option) {
-          background: #08090A;
-          color: white;
-        }
-
         .lm-slider {
           -webkit-appearance: none;
           appearance: none;
