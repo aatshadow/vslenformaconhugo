@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Logo } from '../ui/Logo';
 import { ConfirmacionHero } from './ConfirmacionHero';
-import { AgendaDirecta } from '../sections/AgendaDirecta';
 import { VideoRecurso } from './VideoRecurso';
 import { ComoPrepararte } from './ComoPrepararte';
 import { TestimoniosDestacados } from './TestimoniosDestacados';
@@ -29,7 +28,6 @@ export function GraciasPage() {
       </header>
 
       <ConfirmacionHero firstName={firstName} />
-      <AgendaDirecta mode="unlocked" />
       <VideoRecurso />
       <ComoPrepararte />
       <TestimoniosDestacados />
