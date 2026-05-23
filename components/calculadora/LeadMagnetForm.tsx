@@ -119,11 +119,13 @@ export function LeadMagnetForm({ onSubmit }: Props) {
             </Field>
 
             <Field label="Teléfono (WhatsApp)">
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full">
                 <select
                   value={prefix}
                   onChange={(e) => setPrefix(e.target.value)}
-                  className="form-input w-32 text-sm"
+                  className="form-input text-sm shrink-0"
+                  style={{ width: 92, paddingLeft: 10, paddingRight: 8 }}
+                  aria-label="Prefijo país"
                 >
                   {PHONE_PREFIXES.map(p => (
                     <option key={p.code} value={p.code}>{p.code} {p.country}</option>
@@ -132,10 +134,12 @@ export function LeadMagnetForm({ onSubmit }: Props) {
                 <input
                   type="tel"
                   required
+                  inputMode="tel"
+                  autoComplete="tel-national"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Tu número"
-                  className="form-input flex-1"
+                  className="form-input flex-1 min-w-0"
                 />
               </div>
             </Field>
