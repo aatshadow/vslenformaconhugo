@@ -1,51 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 import type { LeadPayload } from '@/lib/supabase';
-
-// ─── Calendar utilities ─────────────────────────────────────────────────
-// Construye los próximos N días laborales (lun-vie) saltando hoy si ya
-// pasó la última franja. Hugo trabaja desde España (Europe/Madrid). Slots
-// fijos por día — algunos se marcan "ocupado" deterministicamente con un
-// hash del slot+día para que parezca realista sin tocar calendar real.
-const TIME_SLOTS = ['10:00', '11:00', '12:00', '13:00', '16:00', '17:00', '18:00', '19:00'];
-const DAYS_OFFERED = 12; // ~2 semanas hábiles
-
-function nextAvailableDays(count: number): Date[] {
-  const out: Date[] = [];
-  const cur = new Date();
-  cur.setHours(0, 0, 0, 0);
-  let i = 0;
-  while (out.length < count && i < 30) {
-    const d = new Date(cur.getTime() + i * 86400000);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) out.push(d); // skip weekends
-    i++;
-  }
-  return out;
-}
-
-function isSlotTaken(date: Date, slot: string): boolean {
-  // Hash determinista: 25% de slots aparecen "ocupados". Misma fecha+slot
-  // siempre devuelve el mismo resultado (no flickea entre renders).
-  const key = `${date.toISOString().slice(0, 10)}-${slot}`;
-  let h = 0;
-  for (let i = 0; i < key.length; i++) h = ((h << 5) - h) + key.charCodeAt(i) | 0;
-  return Math.abs(h) % 4 === 0;
-}
-
-function fmtDayShort(d: Date): { weekday: string; day: string; month: string } {
-  const weekday = d.toLocaleDateString('es-ES', { weekday: 'short' }).replace('.', '');
-  const day = String(d.getDate());
-  const month = d.toLocaleDateString('es-ES', { month: 'short' }).replace('.', '');
-  return { weekday, day, month };
-}
-
-function fmtFullDate(d: Date): string {
-  return d.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-}
 
 // Endpoint central de Dashboard-Ops que upserta en crm_contacts del tenant
 // `enformaconhugo` con pipeline "VSL En Forma con Hugo" + stage `lead`.
@@ -53,6 +11,11 @@ function fmtFullDate(d: Date): string {
 const LEAD_ENDPOINT =
   process.env.NEXT_PUBLIC_LEAD_ENDPOINT ||
   'https://central.blackwolfsec.io/api/forms/enformaconhugo-submit';
+
+// Tras lead-capture redirigimos al booking real (Google Calendar de Hugo).
+// El calendario simulado se quitó: queremos que la llamada quede agendada de
+// verdad en GCal, no como string en custom_fields.
+const BOOKING_URL = 'https://central.blackwolfsec.io/book/enformaconhugo/hugo?utm_source=vsl-form&utm_campaign=enformaconhugo-vsl';
 
 const PHONE_PREFIXES = [
   { code: '+34', country: 'España' },
@@ -113,19 +76,6 @@ export function FormularioReserva() {
     motivacion: '',
   });
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  // Calendar state. El usuario elige un día + slot horario antes de
-  // enviar. Sin selección, el botón submit queda bloqueado.
-  const days = useMemo(() => nextAvailableDays(DAYS_OFFERED), []);
-  const [selectedDateIdx, setSelectedDateIdx] = useState<number>(0);
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const selectedDate = days[selectedDateIdx] || null;
-  const scheduledAtISO = useMemo(() => {
-    if (!selectedDate || !selectedSlot) return '';
-    const [h, m] = selectedSlot.split(':').map(Number);
-    const d = new Date(selectedDate);
-    d.setHours(h, m, 0, 0);
-    return d.toISOString();
-  }, [selectedDate, selectedSlot]);
 
   const handleChange = (field: keyof FormState) => (e: any) => {
     setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -133,10 +83,9 @@ export function FormularioReserva() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!scheduledAtISO) return; // gate: hay que elegir fecha+hora
     setStatus('loading');
 
-    const payload: LeadPayload & { scheduled_at?: string; scheduled_display?: string } = {
+    const payload: LeadPayload = {
       name: form.name.trim(),
       whatsapp: `${form.prefix} ${form.whatsapp.trim()}`,
       email: form.email.trim().toLowerCase(),
@@ -144,10 +93,6 @@ export function FormularioReserva() {
       momento_actual: form.momento,
       motivacion: form.motivacion.trim(),
       source: 'landing-vsl-enformaconhugo',
-      scheduled_at: scheduledAtISO,
-      scheduled_display: selectedDate
-        ? `${fmtFullDate(selectedDate)} · ${selectedSlot}h`
-        : '',
     };
 
     try {
@@ -160,16 +105,10 @@ export function FormularioReserva() {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || `HTTP ${res.status}`);
       }
-      // Persist name + fecha agendada para thank-you page
+      // Persist name + email para thank-you / referrer tracking
       try {
         sessionStorage.setItem('hugo_lead_name', form.name.trim());
         sessionStorage.setItem('hugo_lead_email', form.email.trim());
-        if (selectedDate && selectedSlot) {
-          sessionStorage.setItem(
-            'hugo_lead_scheduled',
-            `${fmtFullDate(selectedDate)} · ${selectedSlot}h`,
-          );
-        }
       } catch {}
       setStatus('success');
       setTimeout(() => {
@@ -325,83 +264,17 @@ export function FormularioReserva() {
                 />
               </div>
 
-              {/* Calendar widget — fecha + slot horario. Sin selección
-                  el submit queda gated. Funciona "tipo Calendly" pero
-                  los slots no se reservan en agenda real de Hugo: la
-                  app simula disponibilidad determinista (~25% slots
-                  ocupados) y al enviar guarda scheduled_at en payload
-                  para que el CRM lo registre. */}
-              <div className="pt-2">
-                <label className="block font-mono text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-3">
-                  Elige día y hora para la llamada
-                </label>
-                {/* Day picker — horizontal scroll */}
-                <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1 [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-thumb]:bg-fire/30 [&::-webkit-scrollbar-thumb]:rounded-full">
-                  {days.map((d, i) => {
-                    const { weekday, day, month } = fmtDayShort(d);
-                    const active = i === selectedDateIdx;
-                    return (
-                      <button
-                        key={d.toISOString()}
-                        type="button"
-                        onClick={() => { setSelectedDateIdx(i); setSelectedSlot(''); }}
-                        className={`flex-shrink-0 min-w-[64px] px-3 py-2 rounded-xl border transition-all flex flex-col items-center ${
-                          active
-                            ? 'border-fire bg-fire/10 text-white shadow-fire'
-                            : 'border-white/10 bg-slate-950/60 text-slate-300 hover:border-fire/40 hover:bg-fire/5'
-                        }`}
-                      >
-                        <span className="font-mono text-[9px] uppercase tracking-widest opacity-70">{weekday}</span>
-                        <span className={`font-display text-xl leading-none mt-1 ${active ? 'text-fire-gradient' : ''}`}>{day}</span>
-                        <span className="font-mono text-[9px] uppercase tracking-widest opacity-50 mt-1">{month}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {/* Slot picker — grid */}
-                <div className="grid grid-cols-4 gap-2 mt-3">
-                  {TIME_SLOTS.map(slot => {
-                    const taken = selectedDate ? isSlotTaken(selectedDate, slot) : false;
-                    const active = selectedSlot === slot;
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={taken}
-                        onClick={() => setSelectedSlot(slot)}
-                        className={`py-2.5 rounded-xl border font-mono text-sm transition-all ${
-                          taken
-                            ? 'border-white/5 bg-slate-950/40 text-slate-600 line-through cursor-not-allowed'
-                            : active
-                              ? 'border-fire bg-fire text-white shadow-fire'
-                              : 'border-white/10 bg-slate-950/60 text-slate-300 hover:border-fire/50 hover:bg-fire/5'
-                        }`}
-                        title={taken ? 'Slot ocupado' : 'Disponible'}
-                      >
-                        {slot}
-                      </button>
-                    );
-                  })}
-                </div>
-                {scheduledAtISO && (
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-fire-light mt-3 text-center">
-                    Llamada {selectedDate && fmtFullDate(selectedDate)} · {selectedSlot}h
-                  </p>
-                )}
-                {!scheduledAtISO && (
-                  <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 mt-3 text-center">
-                    Selecciona una hora para continuar
-                  </p>
-                )}
-              </div>
-
               <button
                 type="submit"
-                disabled={status === 'loading' || !scheduledAtISO}
+                disabled={status === 'loading'}
                 className="cta-fire w-full !py-5 !text-base mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {status === 'loading' ? 'Confirmando…' : status === 'error' ? 'Error — reintenta' : !scheduledAtISO ? 'Elige día y hora arriba' : 'Confirmar mi llamada gratis →'}
+                {status === 'loading' ? 'Guardando…' : status === 'error' ? 'Error — reintenta' : 'Continuar a la agenda →'}
               </button>
+
+              <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center pt-1">
+                Al continuar, te llevamos a la agenda real de Hugo para que elijas tu hueco.
+              </p>
 
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-3 text-center">
                 <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
@@ -419,22 +292,19 @@ export function FormularioReserva() {
         )}
 
         {status === 'success' && (
-          <PostSubmitCountdown
-            firstName={form.name.split(' ')[0]}
-            scheduledLabel={selectedDate && selectedSlot ? `${fmtFullDate(selectedDate)} · ${selectedSlot}h` : ''}
-          />
+          <PostSubmitRedirect firstName={form.name.split(' ')[0]} />
         )}
       </div>
     </section>
   );
 }
 
-function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string; scheduledLabel: string }) {
-  const [count, setCount] = useState(5);
+function PostSubmitRedirect({ firstName }: { firstName: string }) {
+  const [count, setCount] = useState(3);
 
   useEffect(() => {
     if (count <= 0) {
-      window.location.href = '/gracias';
+      window.location.href = BOOKING_URL;
       return;
     }
     const t = setTimeout(() => setCount(c => c - 1), 1000);
@@ -449,11 +319,9 @@ function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string;
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       className="relative p-8 md:p-14 rounded-3xl bg-gradient-to-br from-slate-900 to-ink border border-fire/30 text-center overflow-hidden"
     >
-      {/* Decorative glow */}
       <div className="absolute -inset-32 bg-fire-radial blur-3xl opacity-40 pointer-events-none" />
 
       <div className="relative">
-        {/* Check icon */}
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
@@ -466,22 +334,16 @@ function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string;
         </motion.div>
 
         <h3 className="font-display text-[clamp(32px,9vw,64px)] md:text-5xl uppercase tracking-tight leading-[0.95] mb-2">
-          ¡Enhorabuena!
+          ¡Perfecto{firstName ? `, ${firstName}` : ''}!
         </h3>
-        <p className="font-display text-[clamp(28px,8vw,52px)] md:text-4xl uppercase tracking-tight leading-[0.95] max-w-2xl mx-auto">
-          <span className="text-fire-gradient">¡Estás dentro!</span>
+        <p className="font-display text-[clamp(24px,7vw,44px)] md:text-3xl uppercase tracking-tight leading-[0.95] max-w-2xl mx-auto">
+          <span className="text-fire-gradient">Elige tu hueco con Hugo →</span>
         </p>
 
-        {scheduledLabel && (
-          <p className="font-mono text-xs md:text-sm uppercase tracking-[0.18em] text-fire-light mt-5">
-            ★ Llamada confirmada · {scheduledLabel}
-          </p>
-        )}
         <p className="font-body text-slate-300 text-base md:text-lg mt-6 max-w-md mx-auto leading-relaxed">
-          Te estamos llevando al siguiente paso. <span className="text-fire-light font-semibold">No cierres esta ventana.</span>
+          Te llevamos a la agenda. <span className="text-fire-light font-semibold">No cierres esta ventana.</span>
         </p>
 
-        {/* Countdown circle */}
         <div className="mt-10 flex flex-col items-center gap-4">
           <div className="relative w-32 h-32 flex items-center justify-center">
             <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
@@ -497,7 +359,7 @@ function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string;
                 strokeDasharray={2 * Math.PI * 46}
                 initial={{ strokeDashoffset: 0 }}
                 animate={{ strokeDashoffset: 2 * Math.PI * 46 }}
-                transition={{ duration: 5, ease: 'linear' }}
+                transition={{ duration: 3, ease: 'linear' }}
               />
               <defs>
                 <linearGradient id="fireGrad" x1="0" y1="0" x2="1" y2="1">
@@ -519,21 +381,10 @@ function PostSubmitCountdown({ firstName, scheduledLabel }: { firstName: string;
               </motion.div>
             </AnimatePresence>
           </div>
-          <p className="font-mono text-xs uppercase tracking-[0.3em] text-slate-400">
-            Redireccionando…
-          </p>
+          <a href={BOOKING_URL} className="cta-fire mt-2">
+            Ir ahora →
+          </a>
         </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-          className="mt-10 max-w-md mx-auto p-4 rounded-xl bg-fire/10 border border-fire/30"
-        >
-          <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-fire-light leading-relaxed">
-            ⚠ Atención · No te salgas de esta página
-          </p>
-        </motion.div>
       </div>
     </motion.div>
   );
