@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { asset } from '@/lib/basePath';
+import { MetaPixel } from '@/components/MetaPixel';
 
 export const metadata: Metadata = {
   title: 'En Forma con Hugo | Pierde 4–10 kg en 8 semanas con el Método Acción Fit',
@@ -30,6 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es">
       <body className="bg-ink text-white antialiased">
+        <MetaPixel />
         {children}
       </body>
     </html>

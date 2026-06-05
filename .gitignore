@@ -2,8 +2,10 @@ node_modules
 .next
 out
 .env*.local
+.secrets*
 .DS_Store
 *.log
+*.tsbuildinfo
 .vercel
 next-env.d.ts
 

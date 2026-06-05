@@ -4,6 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 import type { LeadPayload } from '@/lib/supabase';
+import { makeEventId, getMetaLeadMeta, fireMetaLead } from '@/lib/metaLead';
 
 // Endpoint central de Dashboard-Ops que upserta en crm_contacts del tenant
 // `enformaconhugo` con pipeline "VSL En Forma con Hugo" + stage `lead`.
@@ -85,6 +86,10 @@ export function FormularioReserva() {
     e.preventDefault();
     setStatus('loading');
 
+    // event_id compartido navegador↔servidor para deduplicar el Lead en la CAPI
+    const metaEventId = makeEventId();
+    const metaMeta = getMetaLeadMeta(metaEventId);
+
     const payload: LeadPayload = {
       name: form.name.trim(),
       whatsapp: `${form.prefix} ${form.whatsapp.trim()}`,
@@ -99,16 +104,26 @@ export function FormularioReserva() {
       const res = await fetch(LEAD_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          // Para que central (CAPI server-side) envíe el evento Lead deduplicado
+          meta_event_id: metaMeta.eventId,
+          meta_fbp: metaMeta.fbp,
+          meta_fbc: metaMeta.fbc,
+          meta_event_source_url: metaMeta.eventSourceUrl,
+        }),
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         throw new Error(errBody.error || `HTTP ${res.status}`);
       }
-      // Persist name + email para thank-you / referrer tracking
+      // Pixel navegador: Lead (deduplicado con la CAPI de central vía event_id)
+      fireMetaLead(metaEventId);
+      // Persist name + email + phone para thank-you / referrer tracking
       try {
         sessionStorage.setItem('hugo_lead_name', form.name.trim());
         sessionStorage.setItem('hugo_lead_email', form.email.trim());
+        sessionStorage.setItem('hugo_lead_phone', `${form.prefix} ${form.whatsapp.trim()}`);
       } catch {}
       setStatus('success');
       setTimeout(() => {
