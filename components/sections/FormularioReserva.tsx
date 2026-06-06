@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, FormEvent } from 'react';
+import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
 import type { LeadPayload } from '@/lib/supabase';
 import { makeEventId, getMetaLeadMeta, fireMetaLead } from '@/lib/metaLead';
@@ -13,10 +13,11 @@ const LEAD_ENDPOINT =
   process.env.NEXT_PUBLIC_LEAD_ENDPOINT ||
   'https://central.blackwolfsec.io/api/forms/enformaconhugo-submit';
 
-// Tras lead-capture redirigimos al booking real (Google Calendar de Hugo).
-// El calendario simulado se quitó: queremos que la llamada quede agendada de
-// verdad en GCal, no como string en custom_fields.
-const BOOKING_URL = 'https://central.blackwolfsec.io/book/enformaconhugo/hugo?utm_source=vsl-form&utm_campaign=enformaconhugo-vsl';
+// Tras lead-capture mostramos la agenda real (Google Calendar de Hugo) embebida
+// en la propia página — sin sacar al usuario a otro dominio. El calendario
+// simulado antiguo se quitó: la llamada queda agendada de verdad en GCal.
+// `embed=1` permite a la página de booking ocultar cromo innecesario si aplica.
+const BOOKING_URL = 'https://central.blackwolfsec.io/book/enformaconhugo/hugo?utm_source=vsl-form&utm_campaign=enformaconhugo-vsl&embed=1';
 
 const PHONE_PREFIXES = [
   { code: '+34', country: 'España' },
@@ -288,7 +289,7 @@ export function FormularioReserva() {
               </button>
 
               <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center pt-1">
-                Al continuar, te llevamos a la agenda real de Hugo para que elijas tu hueco.
+                Al continuar, eliges tu hueco con Hugo aquí mismo.
               </p>
 
               <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-3 text-center">
@@ -307,100 +308,65 @@ export function FormularioReserva() {
         )}
 
         {status === 'success' && (
-          <PostSubmitRedirect firstName={form.name.split(' ')[0]} />
+          <PostSubmitAgenda firstName={form.name.split(' ')[0]} />
         )}
       </div>
     </section>
   );
 }
 
-function PostSubmitRedirect({ firstName }: { firstName: string }) {
-  const [count, setCount] = useState(3);
-
-  useEffect(() => {
-    if (count <= 0) {
-      window.location.href = BOOKING_URL;
-      return;
-    }
-    const t = setTimeout(() => setCount(c => c - 1), 1000);
-    return () => clearTimeout(t);
-  }, [count]);
-
+function PostSubmitAgenda({ firstName }: { firstName: string }) {
   return (
     <motion.div
       id="post-submit"
-      initial={{ opacity: 0, scale: 0.95 }}
+      initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      className="relative p-8 md:p-14 rounded-3xl bg-gradient-to-br from-slate-900 to-ink border border-fire/30 text-center overflow-hidden"
+      className="relative"
     >
-      <div className="absolute -inset-32 bg-fire-radial blur-3xl opacity-40 pointer-events-none" />
-
-      <div className="relative">
+      {/* Cabecera de confirmación */}
+      <div className="text-center mb-8">
         <motion.div
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', damping: 16, stiffness: 120, delay: 0.1 }}
-          className="w-20 h-20 mx-auto rounded-full bg-fire-gradient flex items-center justify-center shadow-fire-lg mb-7"
+          className="w-16 h-16 mx-auto rounded-full bg-fire-gradient flex items-center justify-center shadow-fire-lg mb-6"
         >
-          <svg viewBox="0 0 24 24" fill="none" className="w-10 h-10 text-white">
+          <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-white">
             <path d="M5 12l5 5L20 7" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </motion.div>
 
-        <h3 className="font-display text-[clamp(32px,9vw,64px)] md:text-5xl uppercase tracking-tight leading-[0.95] mb-2">
+        <h3 className="font-display text-[clamp(30px,8vw,56px)] md:text-5xl uppercase tracking-tight leading-[0.95] mb-2">
           ¡Perfecto{firstName ? `, ${firstName}` : ''}!
         </h3>
-        <p className="font-display text-[clamp(24px,7vw,44px)] md:text-3xl uppercase tracking-tight leading-[0.95] max-w-2xl mx-auto">
-          <span className="text-fire-gradient">Elige tu hueco con Hugo →</span>
+        <p className="font-display text-[clamp(22px,6vw,40px)] md:text-3xl uppercase tracking-tight leading-[0.95] max-w-2xl mx-auto">
+          <span className="text-fire-gradient">Elige tu hueco con Hugo 👇</span>
         </p>
-
-        <p className="font-body text-slate-300 text-base md:text-lg mt-6 max-w-md mx-auto leading-relaxed">
-          Te llevamos a la agenda. <span className="text-fire-light font-semibold">No cierres esta ventana.</span>
+        <p className="font-body text-slate-300 text-base md:text-lg mt-5 max-w-md mx-auto leading-relaxed">
+          Último paso: selecciona el día y la hora. Tu llamada queda{' '}
+          <span className="text-fire-light font-semibold">reservada al instante</span> en la agenda de Hugo.
         </p>
-
-        <div className="mt-10 flex flex-col items-center gap-4">
-          <div className="relative w-32 h-32 flex items-center justify-center">
-            <svg className="absolute inset-0 -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="46" stroke="rgba(255,69,0,0.15)" strokeWidth="4" fill="none" />
-              <motion.circle
-                cx="50"
-                cy="50"
-                r="46"
-                stroke="url(#fireGrad)"
-                strokeWidth="4"
-                fill="none"
-                strokeLinecap="round"
-                strokeDasharray={2 * Math.PI * 46}
-                initial={{ strokeDashoffset: 0 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 46 }}
-                transition={{ duration: 3, ease: 'linear' }}
-              />
-              <defs>
-                <linearGradient id="fireGrad" x1="0" y1="0" x2="1" y2="1">
-                  <stop offset="0%" stopColor="#FF8A4C" />
-                  <stop offset="100%" stopColor="#E63E00" />
-                </linearGradient>
-              </defs>
-            </svg>
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={count}
-                initial={{ scale: 0.5, opacity: 0, y: 10 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 1.4, opacity: 0, y: -10 }}
-                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                className="font-display text-6xl md:text-7xl text-fire-gradient leading-none"
-              >
-                {Math.max(count, 0)}
-              </motion.div>
-            </AnimatePresence>
-          </div>
-          <a href={BOOKING_URL} className="cta-fire mt-2">
-            Ir ahora →
-          </a>
-        </div>
       </div>
+
+      {/* Agenda real embebida (sin salir de la web) */}
+      <div className="relative rounded-3xl overflow-hidden border border-fire/30 bg-slate-950 shadow-2xl">
+        <iframe
+          src={BOOKING_URL}
+          title="Agenda tu llamada con Hugo"
+          className="w-full block"
+          style={{ height: 'min(1100px, 88vh)', border: 0 }}
+          loading="eager"
+          allow="clipboard-write"
+        />
+      </div>
+
+      <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center pt-4">
+        ¿No ves la agenda?{' '}
+        <a href={BOOKING_URL} target="_blank" rel="noopener noreferrer" className="text-fire-light underline">
+          Ábrela en una pestaña nueva →
+        </a>
+      </p>
     </motion.div>
   );
 }
