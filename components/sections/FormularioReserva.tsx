@@ -1,22 +1,149 @@
 'use client';
 
+import { useState, useEffect, FormEvent } from 'react';
+import { motion } from 'framer-motion';
 import { FadeInSection } from '../ui/FadeInSection';
+import { asset } from '@/lib/basePath';
+import { makeEventId, getMetaLeadMeta, fireMetaLead } from '@/lib/metaLead';
 
-// Agenda real de Hugo embebida en la propia página.
-//
-// El host `hugo` apunta al Google Calendar de Martina (= agenda de Hugo), así
-// que la reserva queda agendada DE VERDAD en GCal con confirmación por email.
-// La página de booking ya incluye el formulario de cualificación (hugo_intake:
-// nombre/email/teléfono + objetivo + momento + listo-a-invertir) y, al reservar,
-// el hook `enformaconhugo-booked` mete el lead en el pipeline "VSL En Forma con
-// Hugo". Por eso aquí solo embebemos la agenda: el lead elige día/hora y reserva
-// sin salir de web.enformaconhugo.com.
-//
-// `embed=1` permite a la página de booking ocultar cromo innecesario si aplica.
-const BOOKING_URL =
-  'https://central.blackwolfsec.io/book/enformaconhugo/hugo?utm_source=vsl-form&utm_campaign=enformaconhugo-vsl&embed=1';
+// Endpoints nativos de central (mismo dominio CORS que enformaconhugo-submit):
+//  - SLOTS: huecos reales del host `hugo` (= GCal de Martina/Hugo)
+//  - BOOK : crea la reserva real (booking + GCal/Meet + CRM + recordatorios)
+// El lead elige día/hora aquí mismo y al reservar va a la thank you page.
+const SLOTS_ENDPOINT =
+  process.env.NEXT_PUBLIC_SLOTS_ENDPOINT ||
+  'https://central.blackwolfsec.io/api/forms/enformaconhugo-slots';
+const BOOK_ENDPOINT =
+  process.env.NEXT_PUBLIC_BOOK_ENDPOINT ||
+  'https://central.blackwolfsec.io/api/forms/enformaconhugo-book';
+
+const PHONE_PREFIXES = [
+  { code: '+34', country: 'España' }, { code: '+52', country: 'México' },
+  { code: '+54', country: 'Argentina' }, { code: '+57', country: 'Colombia' },
+  { code: '+56', country: 'Chile' }, { code: '+51', country: 'Perú' },
+  { code: '+598', country: 'Uruguay' }, { code: '+58', country: 'Venezuela' },
+  { code: '+593', country: 'Ecuador' }, { code: '+591', country: 'Bolivia' },
+  { code: '+595', country: 'Paraguay' }, { code: '+506', country: 'Costa Rica' },
+  { code: '+502', country: 'Guatemala' }, { code: '+503', country: 'El Salvador' },
+  { code: '+507', country: 'Panamá' }, { code: '+1', country: 'EE.UU.' },
+  { code: '+351', country: 'Portugal' }, { code: '+33', country: 'Francia' },
+];
+
+const OBJETIVOS = [
+  'Perder grasa (4–10 kg)', 'Definir y marcar músculo', 'Ganar volumen limpio',
+  'Recomposición corporal', 'Recuperar forma física', 'Otro',
+];
+
+const MOMENTOS = [
+  'Llevo años intentándolo sin resultados', 'Acabo de empezar pero no veo cambios',
+  'Estoy estancado/a desde hace meses', 'Vuelvo después de mucho tiempo parado/a',
+  'Nunca antes he hecho un proceso así',
+];
+
+type Slot = { start: string; end: string; time: string; available: boolean };
+type Day = { date: string; weekday: string; monthday: string; slots: Slot[] };
+
+type FormState = {
+  name: string; prefix: string; whatsapp: string; email: string;
+  objetivo: string; momento: string; motivacion: string;
+};
+
+const SELECT_BG =
+  'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23FF6B35\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")';
 
 export function FormularioReserva() {
+  const [form, setForm] = useState<FormState>({
+    name: '', prefix: '+34', whatsapp: '', email: '',
+    objetivo: '', momento: '', motivacion: '',
+  });
+  const [days, setDays] = useState<Day[]>([]);
+  const [dayIdx, setDayIdx] = useState(0);
+  const [slotStart, setSlotStart] = useState<string | null>(null);
+  const [slotsState, setSlotsState] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [status, setStatus] = useState<'idle' | 'submitting' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleChange = (field: keyof FormState) => (e: any) =>
+    setForm(prev => ({ ...prev, [field]: e.target.value }));
+
+  // Cargar huecos reales al montar
+  const loadSlots = () => {
+    setSlotsState('loading');
+    fetch(SLOTS_ENDPOINT)
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error('slots'))))
+      .then(d => {
+        const ds: Day[] = Array.isArray(d.days) ? d.days : [];
+        setDays(ds);
+        setDayIdx(0);
+        setSlotStart(null);
+        setSlotsState('ready');
+      })
+      .catch(() => setSlotsState('error'));
+  };
+  useEffect(() => { loadSlots(); }, []);
+
+  const currentDay = days[dayIdx];
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (!slotStart) { setErrorMsg('Elige un día y una hora para tu llamada.'); return; }
+    const slot = currentDay?.slots.find(s => s.start === slotStart);
+    if (!slot) { setErrorMsg('Ese horario ya no está disponible, elige otro.'); return; }
+
+    setStatus('submitting');
+    const metaEventId = makeEventId();
+    const meta = getMetaLeadMeta(metaEventId);
+
+    try {
+      const res = await fetch(BOOK_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: form.name.trim(),
+          email: form.email.trim().toLowerCase(),
+          phone: `${form.prefix} ${form.whatsapp.trim()}`,
+          objetivo: form.objetivo,
+          momento: form.momento,
+          motivacion: form.motivacion.trim(),
+          start: slot.start,
+          end: slot.end,
+          meta_event_id: meta.eventId, meta_fbp: meta.fbp,
+          meta_fbc: meta.fbc, meta_event_source_url: meta.eventSourceUrl,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409) {
+        // Slot pillado por otra persona → recargar huecos
+        setStatus('idle');
+        setErrorMsg(data.error || 'Ese horario acaba de ocuparse. Elige otro.');
+        loadSlots();
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Conversión Meta (Lead) deduplicada con la CAPI de central
+      fireMetaLead(metaEventId);
+      try {
+        sessionStorage.setItem('hugo_lead_name', form.name.trim());
+        sessionStorage.setItem('hugo_lead_email', form.email.trim());
+      } catch {}
+      // → thank you page
+      window.location.href = asset('/gracias');
+    } catch (err: any) {
+      console.error('Error al reservar:', err);
+      setStatus('error');
+      setErrorMsg(err?.message || 'No se pudo crear la reserva. Inténtalo de nuevo.');
+      setTimeout(() => setStatus('idle'), 100);
+    }
+  };
+
+  const inputCls =
+    'w-full px-4 py-3.5 rounded-xl bg-slate-950/80 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-fire focus:bg-fire/5 transition-colors font-body';
+  const selectCls =
+    'w-full px-4 py-3.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-fire transition-colors font-body appearance-none cursor-pointer';
+  const labelCls = 'block font-mono text-[10px] uppercase tracking-[0.25em] text-slate-400 mb-2';
+
   return (
     <section id="reservar" className="relative py-16 md:py-32 px-4 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-ink via-slate-950 to-ink pointer-events-none" />
@@ -30,49 +157,152 @@ export function FormularioReserva() {
             <span className="text-fire-gradient">llamada gratis.</span>
           </h2>
           <p className="font-body text-slate-300 text-base md:text-lg mt-6 max-w-xl mx-auto leading-relaxed">
-            Elige el día y la hora que mejor te venga. Responde unas preguntas rápidas y tu
-            llamada con Hugo queda <span className="text-fire-light font-semibold">reservada al instante</span>.
+            Rellena tus datos, elige el día y la hora, y tu llamada con Hugo queda{' '}
+            <span className="text-fire-light font-semibold">reservada al instante</span>.
           </p>
         </FadeInSection>
 
-        <FadeInSection>
-          {/* Agenda real embebida — el lead reserva aquí mismo (host de Hugo) */}
-          <div className="relative rounded-3xl overflow-hidden border border-fire/30 bg-slate-950 shadow-2xl">
-            <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-fire/30 via-fire/5 to-transparent blur-sm pointer-events-none" />
-            <iframe
-              src={BOOKING_URL}
-              title="Agenda tu llamada con Hugo"
-              className="relative w-full block"
-              style={{ height: 'min(1150px, 88vh)', border: 0 }}
-              loading="lazy"
-              allow="clipboard-write"
-            />
-          </div>
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.15 }}
+          transition={{ duration: 0.7 }}
+          className="relative"
+        >
+          <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-fire/40 via-fire/10 to-transparent blur-sm" />
+          <form
+            onSubmit={handleSubmit}
+            className="relative p-6 md:p-10 rounded-3xl bg-gradient-to-br from-slate-900 to-ink border border-fire/20 space-y-5"
+          >
+            <div>
+              <label className={labelCls}>Tu nombre</label>
+              <input type="text" required value={form.name} onChange={handleChange('name')}
+                placeholder="Nombre (sin apellidos)" className={inputCls} />
+            </div>
 
-          <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center pt-4">
-            ¿No ves la agenda?{' '}
-            <a
-              href={BOOKING_URL.replace('&embed=1', '')}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-fire-light underline"
-            >
-              Ábrela en una pestaña nueva →
-            </a>
-          </p>
+            <div>
+              <label className={labelCls}>WhatsApp</label>
+              <div className="flex gap-2">
+                <select value={form.prefix} onChange={handleChange('prefix')}
+                  className="w-32 px-3 py-3.5 rounded-xl bg-slate-950/80 border border-white/10 text-white focus:outline-none focus:border-fire transition-colors font-body text-sm">
+                  {PHONE_PREFIXES.map(p => <option key={p.code} value={p.code}>{p.code} {p.country}</option>)}
+                </select>
+                <input type="tel" required value={form.whatsapp} onChange={handleChange('whatsapp')}
+                  placeholder="Tu número" className={`flex-1 ${inputCls}`} />
+              </div>
+            </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-5 text-center">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-              🔒 Datos 100% privados
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-              ⚡ Confirmación inmediata
-            </span>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">
-              🎁 Bonos incluidos
-            </span>
-          </div>
-        </FadeInSection>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input type="email" required value={form.email} onChange={handleChange('email')}
+                placeholder="tu@correo.com" className={inputCls} />
+            </div>
+
+            <div>
+              <label className={labelCls}>Tu objetivo principal</label>
+              <select required value={form.objetivo} onChange={handleChange('objetivo')} className={selectCls}
+                style={{ backgroundImage: SELECT_BG, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center' }}>
+                <option value="" disabled>Selecciona…</option>
+                {OBJETIVOS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>¿En qué momento te encuentras?</label>
+              <select required value={form.momento} onChange={handleChange('momento')} className={selectCls}
+                style={{ backgroundImage: SELECT_BG, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 16px center' }}>
+                <option value="" disabled>Selecciona…</option>
+                {MOMENTOS.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelCls}>¿Por qué sientes que ahora es el momento de dar el cambio?</label>
+              <textarea required rows={3} value={form.motivacion} onChange={handleChange('motivacion')}
+                placeholder="Cuéntame qué te ha traído hasta aquí. Sé honesto/a, esto Hugo lo lee antes de la llamada."
+                className={`${inputCls} resize-none`} />
+            </div>
+
+            {/* ── Día + hora (huecos reales del calendario de Hugo) ── */}
+            <div className="pt-2">
+              <label className={labelCls}>Elige el día</label>
+              {slotsState === 'loading' && (
+                <p className="font-body text-slate-400 text-sm py-3">Cargando huecos disponibles…</p>
+              )}
+              {slotsState === 'error' && (
+                <p className="font-body text-fire-light text-sm py-3">
+                  No pudimos cargar la agenda.{' '}
+                  <button type="button" onClick={loadSlots} className="underline">Reintentar</button>
+                </p>
+              )}
+              {slotsState === 'ready' && days.length === 0 && (
+                <p className="font-body text-slate-400 text-sm py-3">
+                  No hay huecos disponibles ahora mismo. Escríbenos por WhatsApp y te ayudamos.
+                </p>
+              )}
+              {slotsState === 'ready' && days.length > 0 && (
+                <>
+                  <div className="flex gap-2 overflow-x-auto pb-2 -mx-1 px-1">
+                    {days.map((d, i) => {
+                      const active = i === dayIdx;
+                      return (
+                        <button key={d.date} type="button"
+                          onClick={() => { setDayIdx(i); setSlotStart(null); }}
+                          className={`shrink-0 px-4 py-2.5 rounded-xl border text-center transition-colors ${
+                            active ? 'bg-fire/15 border-fire text-white' : 'bg-slate-950/80 border-white/10 text-slate-300 hover:border-fire/40'
+                          }`}>
+                          <span className="block font-mono text-[10px] uppercase tracking-widest text-slate-400">{d.weekday}</span>
+                          <span className="block font-body text-sm font-semibold">{d.monthday}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <label className={`${labelCls} mt-4`}>Horario disponible (hora España)</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {currentDay?.slots.map(s => {
+                      const selected = slotStart === s.start;
+                      return (
+                        <button key={s.start} type="button" disabled={!s.available}
+                          onClick={() => setSlotStart(s.start)}
+                          className={`px-2 py-2.5 rounded-xl border font-body text-sm transition-colors ${
+                            selected
+                              ? 'bg-fire-gradient border-transparent text-white shadow-fire-lg'
+                              : s.available
+                                ? 'bg-slate-950/80 border-white/10 text-white hover:border-fire'
+                                : 'bg-slate-950/40 border-white/5 text-slate-600 cursor-not-allowed line-through'
+                          }`}>
+                          {s.time}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {errorMsg && (
+              <p className="font-body text-sm text-fire-light text-center bg-fire/5 border border-fire/20 rounded-xl py-2.5 px-3">
+                {errorMsg}
+              </p>
+            )}
+
+            <button type="submit" disabled={status === 'submitting'}
+              className="cta-fire w-full !py-5 !text-base mt-2 disabled:opacity-60 disabled:cursor-not-allowed">
+              {status === 'submitting' ? 'Reservando…' : 'Reservar mi llamada →'}
+            </button>
+
+            <p className="font-mono text-[10px] uppercase tracking-widest text-slate-500 text-center pt-1">
+              Al reservar, tu llamada queda confirmada en la agenda de Hugo.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-2 text-center">
+              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">🔒 Datos 100% privados</span>
+              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">⚡ Confirmación inmediata</span>
+              <span className="font-mono text-[10px] uppercase tracking-widest text-slate-500">🎁 Bonos incluidos</span>
+            </div>
+          </form>
+        </motion.div>
       </div>
     </section>
   );
