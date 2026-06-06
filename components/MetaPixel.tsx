@@ -2,7 +2,8 @@
 
 import Script from 'next/script';
 
-const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+// VSL Pixel hardcodeado (con override opcional por env) → no necesita config en Vercel.
+const PIXEL_ID = process.env.NEXT_PUBLIC_META_PIXEL_ID || '1645625716701791';
 
 /**
  * Meta Pixel base loader (browser-side).
