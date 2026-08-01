@@ -17,6 +17,17 @@ const BOOK_ENDPOINT =
   process.env.NEXT_PUBLIC_BOOK_ENDPOINT ||
   'https://central.blackwolfsec.io/api/forms/enformaconhugo-book';
 
+// Copia del lead al CRM de HELM (helm.s4sf.net/enformaconhugo): crea o
+// encuentra el contacto y le engancha las respuestas del formulario a su ficha.
+// NO sustituye a la reserva de central — eso sigue siendo lo que crea el evento
+// en la agenda de Hugo. Esto es solo para que el equipo lea el cuestionario en
+// el CRM, así que se manda después de reservar y sin bloquear nada.
+const HELM_ENDPOINT =
+  process.env.NEXT_PUBLIC_HELM_ENDPOINT ||
+  'https://helm.s4sf.net/api/formularios';
+const HELM_PERFIL = 'enformaconhugo';
+const HELM_FORM = 'reserva';
+
 const PHONE_PREFIXES = [
   { code: '+34', country: 'España' }, { code: '+52', country: 'México' },
   { code: '+54', country: 'Argentina' }, { code: '+57', country: 'Colombia' },
@@ -50,6 +61,55 @@ type FormState = {
 
 const SELECT_BG =
   'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23FF6B35\' stroke-width=\'2\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpolyline points=\'6 9 12 15 18 9\'%3E%3C/polyline%3E%3C/svg%3E")';
+
+// De dónde vino el lead. Se lee de la URL en el momento del envío, que es lo
+// que queda cuando alguien llega desde un anuncio.
+function origenDeLaUrl() {
+  if (typeof window === 'undefined') return {};
+  const sp = new URLSearchParams(window.location.search);
+  const campos = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid'];
+  const out: Record<string, string> = {};
+  for (const k of campos) { const v = sp.get(k); if (v) out[k] = v; }
+  if (document.referrer) out.referrer = document.referrer;
+  return out;
+}
+
+// Envío a HELM. `keepalive` es lo importante: justo después de esto se navega a
+// /gracias, y sin él el navegador cancelaría la petición a medias y el lead no
+// llegaría nunca al CRM.
+function enviarAHelm(form: FormState, slot: Slot, eventSourceUrl?: string) {
+  const payload = {
+    slug: HELM_PERFIL,
+    form: HELM_FORM,
+    nombre: form.name.trim(),
+    email: form.email.trim().toLowerCase(),
+    telefono: `${form.prefix}${form.whatsapp.trim().replace(/\D/g, '')}`,
+    origen: 'Web',
+    respuestas: {
+      objetivo: form.objetivo,
+      momento: form.momento,
+      motivacion: form.motivacion.trim(),
+    },
+    meta: {
+      // La hora reservada no es una respuesta del lead, pero es lo primero que
+      // quiere ver quien abre la ficha antes de la llamada.
+      slot_start: slot.start,
+      slot_end: slot.end,
+      landing_url: eventSourceUrl || '',
+      ...origenDeLaUrl(),
+    },
+  };
+  try {
+    fetch(HELM_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(err => console.warn('[helm] no se pudo copiar el lead:', err));
+  } catch (err) {
+    console.warn('[helm] no se pudo copiar el lead:', err);
+  }
+}
 
 export function FormularioReserva() {
   const [form, setForm] = useState<FormState>({
@@ -121,6 +181,11 @@ export function FormularioReserva() {
         return;
       }
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      // Copia al CRM de HELM. Va detrás de la reserva y no se espera: si HELM
+      // está caído, la llamada ya está agendada y el lead no puede quedarse
+      // mirando una pantalla de carga por eso.
+      enviarAHelm(form, slot, meta.eventSourceUrl);
 
       // Conversión Meta (Lead) deduplicada con la CAPI de central
       fireMetaLead(metaEventId);
